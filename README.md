@@ -5,6 +5,13 @@ ISO8601 Duration Parser for Golang
 
 Adapted from http://github.com/BrianHicks/finch
 
+## Usage
+
+```sh
+go get github.com/toowoxx/go-iso8601duration
+```
+
+See `duration_test.go` for examples.
 
 ## License
 
