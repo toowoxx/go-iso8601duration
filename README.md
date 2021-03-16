@@ -1,7 +1,9 @@
 iso8601duration
 ===============
 
-ISO8601 Duration Parser for Golang
+ISO8601 Duration Parser for Golang.
+Does not strictly conform to ISO 8601.
+Supports both weeks and months in the same string and does not round up any numbers.
 
 Adapted from http://github.com/BrianHicks/finch
 
