@@ -15,17 +15,25 @@ var (
 	// ErrBadFormat is returned when parsing fails
 	ErrBadFormat = errors.New("bad format string")
 
-	// ErrNoMonth is raised when a month is in the format string
-	ErrNoMonth = errors.New("no months allowed")
+	tmpl = template.Must(template.New("duration").
+		Parse(
+			`P{{if .Years}}{{.Years}}Y{{end}}` +
+				`{{if .Months}}{{.Months}}M{{end}}` +
+				`{{if .Weeks}}{{.Weeks}}W{{end}}` +
+				`{{if .Days}}{{.Days}}D{{end}}` +
+				`{{if .HasTimePart}}T{{end}}` +
+				`{{if .Hours}}{{.Hours}}H{{end}}` +
+				`{{if .Minutes}}{{.Minutes}}M{{end}}` +
+				`{{if .Seconds}}{{.Seconds}}S{{end}}`,
+		),
+	)
 
-	tmpl = template.Must(template.New("duration").Parse(`P{{if .Years}}{{.Years}}Y{{end}}{{if .Weeks}}{{.Weeks}}W{{end}}{{if .Days}}{{.Days}}D{{end}}{{if .HasTimePart}}T{{end }}{{if .Hours}}{{.Hours}}H{{end}}{{if .Minutes}}{{.Minutes}}M{{end}}{{if .Seconds}}{{.Seconds}}S{{end}}`))
-
-	full = regexp.MustCompile(`P((?P<year>\d+)Y)?((?P<month>\d+)M)?((?P<day>\d+)D)?(T((?P<hour>\d+)H)?((?P<minute>\d+)M)?((?P<second>\d+)S)?)?`)
-	week = regexp.MustCompile(`P((?P<week>\d+)W)`)
+	full = regexp.MustCompile(`P((?P<year>\d+)Y)?((?P<month>\d+)M)?((?P<week>\d+)W)?((?P<day>\d+)D)?(T((?P<hour>\d+)H)?((?P<minute>\d+)M)?((?P<second>\d+)S)?)?`)
 )
 
 type Duration struct {
 	Years   int
+	Months  int
 	Weeks   int
 	Days    int
 	Hours   int
@@ -39,10 +47,7 @@ func FromString(dur string) (*Duration, error) {
 		re    *regexp.Regexp
 	)
 
-	if week.MatchString(dur) {
-		match = week.FindStringSubmatch(dur)
-		re = week
-	} else if full.MatchString(dur) {
+	if full.MatchString(dur) {
 		match = full.FindStringSubmatch(dur)
 		re = full
 	} else {
@@ -65,7 +70,7 @@ func FromString(dur string) (*Duration, error) {
 		case "year":
 			d.Years = val
 		case "month":
-			return nil, ErrNoMonth
+			d.Months = val
 		case "week":
 			d.Weeks = val
 		case "day":
@@ -104,13 +109,17 @@ func (d *Duration) HasTimePart() bool {
 	return d.Hours != 0 || d.Minutes != 0 || d.Seconds != 0
 }
 
-func (d *Duration) ToDuration() time.Duration {
+// ToEstimatedDuration returns an inaccurate duration that
+// is independent of when counting is started
+func (d *Duration) ToEstimatedDuration() time.Duration {
 	day := time.Hour * 24
+	month := day * 30
 	year := day * 365
 
 	tot := time.Duration(0)
 
 	tot += year * time.Duration(d.Years)
+	tot += month * time.Duration(d.Months)
 	tot += day * 7 * time.Duration(d.Weeks)
 	tot += day * time.Duration(d.Days)
 	tot += time.Hour * time.Duration(d.Hours)
@@ -118,4 +127,20 @@ func (d *Duration) ToDuration() time.Duration {
 	tot += time.Second * time.Duration(d.Seconds)
 
 	return tot
+}
+
+// ToDuration returns an accurate duration based on the current
+// date in the calendar. As months and years have variable durations
+// it's difficult to guess when exactly the duration will be passed.
+// This method aims to return a duration that will exactly hit the
+// expected time and date.
+func (d *Duration) ToDuration(from time.Time) time.Duration {
+	targetTime := from.
+		AddDate(d.Years, d.Months, 0).
+		AddDate(0, 0, 7*d.Weeks).
+		AddDate(0, 0, d.Days).
+		Add(time.Duration(d.Hours) * time.Hour).
+		Add(time.Duration(d.Minutes) * time.Minute).
+		Add(time.Duration(d.Seconds) * time.Second)
+	return targetTime.Sub(from)
 }
