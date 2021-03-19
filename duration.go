@@ -1,4 +1,4 @@
-// Package iso8601duration provides a partial implementation of ISO8601 durations. (no months)
+// Package iso8601duration provides a partial implementation of ISO8601 durations
 package iso8601duration
 
 import (
